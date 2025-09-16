@@ -1,0 +1,118 @@
+<!-- templates/dashboard.html -->
+{% extends "base.html" %}
+{% block content %}
+<section class="dashboard">
+  <h2>Dashboard</h2>
+
+  <div class="kpis">
+    <div class="kpi">
+      <span class="kpi-label">Website clicks</span>
+      <span class="kpi-value">{{ website_clicks }}</span>
+    </div>
+    <div class="kpi">
+      <span class="kpi-label">Call button clicks</span>
+      <span class="kpi-value">{{ call_clicks }}</span>
+    </div>
+  </div>
+
+  <div class="charts">
+    <div class="chart-card">
+      <h3>Traffic origin — Clicks</h3>
+      <ul class="pill-list">
+        {% for src, count in click_sources.items %}
+          <li><strong>{{ src }}:</strong> {{ count }}</li>
+        {% empty %}
+          <li>No data yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="chart-card">
+      <h3>Traffic origin — Quotes</h3>
+      <ul class="pill-list">
+        {% for src, count in quote_sources.items %}
+          <li><strong>{{ src }}:</strong> {{ count }}</li>
+        {% empty %}
+          <li>No data yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="chart-card">
+      <h3>Traffic origin — Calls</h3>
+      <ul class="pill-list">
+        {% for src, count in call_sources.items %}
+          <li><strong>{{ src }}:</strong> {{ count }}</li>
+        {% empty %}
+          <li>No data yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <h3>Recent call recordings</h3>
+    <table class="mk-table">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Caller</th>
+          <th>Duration</th>
+          <th>Recording</th>
+          <th>Source</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in recent_calls %}
+          <tr>
+            <td>{{ c.started_at }}</td>
+            <td>{{ c.caller_number }}</td>
+            <td>{{ c.duration_seconds }}s</td>
+            <td>
+              {% if c.recording_url %}
+                <a href="{{ c.recording_url }}" target="_blank" rel="noopener">Listen</a>
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td>{{ c.source|default:"unknown" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5">No calls yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="table-card">
+    <h3>Recent submitted quotes</h3>
+    <table class="mk-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Phone</th>
+          <th>Email</th>
+          <th>Service Needed</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in recent_calls %}
+          <tr>
+            <td>{{ c.started_at }}</td>
+            <td>{{ c.caller_number }}</td>
+            <td>{{ c.duration_seconds }}s</td>
+            <td>
+              {% if c.recording_url %}
+                <a href="{{ c.recording_url }}" target="_blank" rel="noopener">Listen</a>
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td>{{ c.source|default:"unknown" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5">No quotes yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

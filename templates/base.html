@@ -1,0 +1,37 @@
+<!-- templates/base.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Mena’s Key — 24/7 Emergency Locksmith</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}" />
+  <script defer src="{% static 'js/app.js' %}"></script>
+  <script>
+    // GTM dataLayer
+    window.dataLayer = window.dataLayer || [];
+  </script>
+</head>
+<body>
+  <header class="mk-header">
+    <div class="brand">
+      <span class="logo">🔑</span>
+      <span>Mena’s Key</span>
+    </div>
+    <nav class="mk-nav">
+      <a href="#services" class="nav-link">Services</a>
+      <a href="#quote" class="nav-link">Get Quote</a>
+      <a href="tel:{{ phone }}" class="nav-cta">Call {{ phone }}</a>
+    </nav>
+  </header>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="mk-footer">
+    <p>© {{ now|default:2025 }} Mena’s Key — Licensed & Insured • 24/7</p>
+  </footer>
+</body>
+</html>

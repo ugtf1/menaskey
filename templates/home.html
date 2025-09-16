@@ -1,0 +1,84 @@
+<!-- templates/home.html -->
+{% extends "base.html" %}
+{% block content %}
+
+<section class="hero">
+  <div class="hero-content">
+    <h1 class="title">Locked out? We’ll be there in minutes.</h1>
+    <p class="subtitle">24/7 emergency locksmiths across the US. Fast, friendly, and damage-free.</p>
+    <a href="tel:{{ phone }}" class="btn primary pulse">Call {{ phone }}</a>
+  </div>
+  <div class="hero-art"></div>
+</section>
+
+<section id="services" class="cards">
+  <div class="card tilt">
+    <h3>Emergency lockout</h3>
+    <p>Home, car, office — rapid response.</p>
+  </div>
+  <div class="card tilt">
+    <h3>Rekey & replace</h3>
+    <p>Secure your property with fresh keys.</p>
+  </div>
+  <div class="card tilt">
+    <h3>Smart locks</h3>
+    <p>Install and configure modern access.</p>
+  </div>
+</section>
+
+<section id="quote" class="quote-section">
+  <h2>Get a fast quote</h2>
+  <form id="quoteForm" novalidate>
+    {% csrf_token %}
+    <div class="grid">
+      <label>
+        <span>Name</span>
+        <input type="text" name="name" required maxlength="120" />
+        <small class="error"></small>
+      </label>
+      <label>
+        <span>Phone</span>
+        <input type="tel" name="phone" required maxlength="30" pattern="^[0-9+\-\s()]{7,}$" />
+        <small class="error"></small>
+      </label>
+      <label>
+        <span>Email (optional)</span>
+        <input type="email" name="email" />
+        <small class="error"></small>
+      </label>
+      <label>
+        <span>Service needed</span>
+        <input type="text" name="service" required maxlength="120" placeholder="e.g., Car lockout, Rekey" />
+        <small class="error"></small>
+      </label>
+      <label class="span-2">
+        <span>Details (optional)</span>
+        <textarea name="message" rows="3" placeholder="Year/make of car, address area, timing…"></textarea>
+        <small class="error"></small>
+      </label>
+      <!-- Honeypot (hidden) -->
+      <label class="hp">
+        <span>Company</span>
+        <input type="text" name="company" autocomplete="off" />
+      </label>
+    </div>
+
+    <button type="submit" class="btn submit">
+      <span class="btn-text">Get Quote</span>
+      <span class="spinner" aria-hidden="true"></span>
+    </button>
+
+    <p id="formStatus" class="status" role="status" aria-live="polite"></p>
+  </form>
+</section>
+
+<!-- StickyCallBar (hidden ≥992px) -->
+<div id="stickyCallBar" class="sticky-call" data-phone="{{ phone }}" data-label="{{ sticky_label|default:'24/7 Emergency • Call Now' }}">
+  <a id="stickyCallLink" class="sticky-link" href="tel:{{ phone }}">
+    <span class="call-emoji">📞</span>
+    <span class="label">{{ sticky_label|default:"24/7 Emergency • Call Now" }}</span>
+    <span class="phone">{{ phone }}</span>
+  </a>
+</div>
+
+{% endblock %}
