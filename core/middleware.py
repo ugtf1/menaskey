@@ -1,4 +1,4 @@
-# core/middleware.py
+
 from urllib.parse import urlparse
 from django.utils.deprecation import MiddlewareMixin
 

@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -25,7 +26,14 @@ SECRET_KEY = 'django-insecure-poz_ntpn1m)d*p&$!h*7am#ljet_+1(^btwn1!fbmhap#ex&4#
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['0.0.0.0',"*","127.0.0.1","localhost"]
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://mydomain.com',
+    'https://staging.mydomain.com',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+]
 
 
 # Application definition
@@ -71,7 +79,9 @@ TEMPLATES = [{
 }]
 
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
+STATIC_ROOT = BASE_DIR / "staticfiles"
+# STATICFILES_DIRS = [BASE_DIR / "static"] if (BASE_DIR / "static").exists() else []
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
@@ -79,6 +89,11 @@ LOGOUT_REDIRECT_URL = '/login/'
 
 
 WSGI_APPLICATION = 'menas_key.wsgi.application'
+
+CSRF_TRUSTED_ORIGINS = [
+        'https://menaskey-30228073381.us-west2.run.app',
+        'https://menaskey-30228073381.us-west2.run.app/login/',
+    ]
 
 
 # Database

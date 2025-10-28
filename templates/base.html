@@ -4,10 +4,134 @@
 <head>
   <meta charset="utf-8" />
   <title>Mena’s Key — 24/7 Emergency Locksmith</title>
+
+<style>
+  /* static/css/styles.css */
+:root {
+  --bg: #0b0f14;
+  --fg: #e8f0ff;
+  --muted: #9fb3c8;
+  --brand: #2fd2ff;
+  --accent: #ffd166;
+  --danger: #ff5a5f;
+}
+
+* { box-sizing: border-box; }
+body { margin:0; background:linear-gradient(120deg,#0b0f14,#101826); color:var(--fg); font:16px/1.5 Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+
+.mk-header {
+  position: sticky; top:0; z-index: 1000;
+  display:flex; justify-content:space-between; align-items:center;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  background: rgba(16,24,38,0.6); padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.brand { display:flex; gap:10px; align-items:center; font-weight:700; letter-spacing:.3px; }
+.logo { filter: drop-shadow(0 2px 8px rgba(47,210,255,.5)); }
+.mk-nav { display:flex; gap:14px; }
+.nav-link { color:var(--muted); text-decoration:none; transition:.2s ease; }
+.nav-link:hover { color:var(--fg); transform: translateY(-1px); }
+.nav-cta { color:#081018; background: var(--brand); padding:.5rem .9rem; border-radius:10px; text-decoration:none; font-weight:700; box-shadow:0 10px 30px rgba(47,210,255,.25); }
+
+.hero { display:grid; grid-template-columns:1.2fr 1fr; gap:24px; align-items:center; padding:60px 20px; max-width:1100px; margin: 0 auto; }
+.hero-content .title { font-size: clamp(28px, 4vw, 44px); margin:0 0 8px; }
+.subtitle { color: var(--muted); margin-bottom: 20px; }
+.btn { display:inline-flex; align-items:center; gap:10px; border:0; border-radius:12px; padding:.9rem 1.2rem; cursor:pointer; transition:.25s ease; text-decoration:none; font-weight:700; }
+.btn.primary { background: linear-gradient(135deg, var(--brand), #54f1d6); color:#001018; }
+.btn.primary:hover { transform: translateY(-2px) scale(1.01); box-shadow:0 12px 30px rgba(47,210,255,.35); }
+.pulse { animation: pulse 2.2s infinite; }
+@keyframes pulse { 0%,100%{ box-shadow:0 0 0 0 rgba(47,210,255,.5);} 50%{ box-shadow:0 0 0 18px rgba(47,210,255,0);} }
+
+.hero-art { height: 260px; border-radius:18px; background:
+  radial-gradient(120px 80px at 30% 40%, rgba(47,210,255,.35), transparent 60%),
+  radial-gradient(160px 120px at 70% 60%, rgba(255,209,102,.35), transparent 60%),
+  linear-gradient(135deg, #0e1626, #0b0f14);
+  filter: saturate(120%);
+  box-shadow: inset 0 0 40px rgba(255,255,255,.04), 0 20px 60px rgba(0,0,0,.4);
+  transition: transform .6s ease;
+}
+.hero-art:hover { transform: rotate(-1deg) scale(1.02); }
+
+.cards { max-width:1100px; margin: 20px auto; padding: 0 20px; display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; }
+.card { background: rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:14px; padding:16px; transition: transform .25s ease, box-shadow .25s ease; }
+.card:hover { transform: translateY(-4px); box-shadow: 0 14px 40px rgba(0,0,0,.35); }
+.tilt { transform-style: preserve-3d; }
+.tilt:hover h3 { transform: translateZ(12px); }
+
+.quote-section { max-width:900px; margin: 40px auto 100px; padding: 0 20px; }
+.quote-section h2 { margin-bottom: 12px; }
+#quoteForm .grid { display:grid; grid-template-columns: repeat(2, 1fr); gap:12px; }
+#quoteForm label { display:flex; flex-direction:column; gap:6px; }
+#quoteForm input, #quoteForm textarea {
+  background: rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);
+  color: var(--fg); border-radius:10px; padding:.7rem .8rem; outline:none; transition:.2s;
+}
+#quoteForm input:focus, #quoteForm textarea:focus { border-color: var(--brand); box-shadow:0 0 0 4px rgba(47,210,255,.12); }
+#quoteForm .span-2 { grid-column: span 2; }
+#quoteForm .hp { position:absolute; left:-10000px; width:1px; height:1px; overflow:hidden; }
+.btn.submit { background: linear-gradient(135deg, #8ad7ff, #2fd2ff); color:#071018; margin-top: 10px; position:relative; }
+.btn.submit[disabled] { opacity:.6; cursor:not-allowed; }
+.spinner { width:16px; height:16px; border:3px solid rgba(0,0,0,.15); border-top-color:#071018; border-radius:50%; display:none; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.btn.submit.loading .spinner { display:inline-block; }
+.status { min-height: 20px; margin-top:8px; color: var(--muted); }
+.status.ok { color:#6df7c8; }
+.status.err { color: var(--danger); }
+
+.sticky-call {
+  position: fixed; bottom: 12px; left:12px; right:12px; z-index:9999;
+  display:flex; justify-content:center;
+}
+.sticky-link {
+  width:100%; max-width:520px;
+  display:flex; align-items:center; justify-content:center; gap:10px;
+  color:#041014; text-decoration:none; font-weight:800;
+  background: linear-gradient(135deg, var(--accent), #ff9a62);
+  padding:.9rem 1rem; border-radius:16px;
+  box-shadow: 0 16px 50px rgba(255,209,102,.35);
+  transform: translateY(0); transition:.2s ease;
+}
+.sticky-link:active { transform: translateY(2px); }
+.call-emoji { filter: drop-shadow(0 2px 6px rgba(0,0,0,.2)); }
+
+@media (min-width: 992px) {
+  .sticky-call { display:none; }
+}
+
+.mk-footer { text-align:center; color: var(--muted); padding: 30px 20px; border-top:1px solid rgba(255,255,255,0.06); margin-top:60px; }
+
+.login-body { display:grid; place-items:center; min-height:100vh; background: radial-gradient(600px at 20% 20%, rgba(47,210,255,.15), transparent), radial-gradient(600px at 80% 80%, rgba(255,209,102,.15), transparent), #0b0f14; }
+.login-card { width: 360px; background: rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); padding:24px; border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.35); }
+.login-card h1 { margin:0 0 14px; }
+.login-card label { display:flex; flex-direction:column; gap:6px; margin-bottom:10px; }
+.login-card input { background: rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); color:var(--fg); border-radius:10px; padding:.7rem .8rem; }
+.error-banner { background: rgba(255,90,95,.15); border:1px solid rgba(255,90,95,.35); padding:.6rem .8rem; border-radius:10px; color:#ffdfe0; }
+
+.dashboard { max-width:1100px; margin: 20px auto; padding: 0 20px; }
+.kpis { display:grid; grid-template-columns: repeat(2,1fr); gap:16px; }
+.kpi { background: rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px; }
+.kpi-label { color: var(--muted); display:block; margin-bottom:6px; }
+.kpi-value { font-size: 28px; font-weight: 900; letter-spacing:.5px; }
+.charts { display:grid; grid-template-columns: repeat(3,1fr); gap:16px; margin-top:16px; }
+.chart-card, .table-card { background: rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px; }
+.pill-list { list-style:none; padding:0; margin:0; display:flex; flex-wrap:wrap; gap:8px; }
+.pill-list li { background: rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); padding:.3rem .6rem; border-radius:999px; }
+.mk-table { width:100%; border-collapse: collapse; margin-top:10px; }
+.mk-table th, .mk-table td { border-bottom:1px solid rgba(255,255,255,.08); padding:10px; text-align:left; }
+
+@media (max-width: 900px) {
+  .hero { grid-template-columns:1fr; }
+  .cards { grid-template-columns:1fr; }
+  #quoteForm .grid { grid-template-columns:1fr; }
+  .charts { grid-template-columns:1fr; }
+}
+
+</style>
+
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   {% load static %}
-  <link rel="stylesheet" href="{% static 'css/styles.css' %}" />
-  <script defer src="{% static 'js/app.js' %}"></script>
+  {% comment %} <link rel="stylesheet" href="{% static 'css/styles.css' %}" />
+  <script defer src="{% static 'js/app.js' %}"></script> {% endcomment %}
   <script>
     // GTM dataLayer
     window.dataLayer = window.dataLayer || [];
@@ -33,5 +157,158 @@
   <footer class="mk-footer">
     <p>© {{ now|default:2025 }} Mena’s Key — Licensed & Insured • 24/7</p>
   </footer>
+
+<script>
+// static/js/app.js
+(function() {
+  // CSRF helper
+  function getCookie(name) {
+    const m = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return m ? m.pop() : '';
+  }
+  const csrftoken = getCookie('csrftoken');
+
+  // Quote form logic
+  const form = document.getElementById('quoteForm');
+  const statusEl = document.getElementById('formStatus');
+
+  function setStatus(text, ok=false) {
+    statusEl.textContent = text;
+    statusEl.classList.remove('ok','err');
+    statusEl.classList.add(ok ? 'ok' : 'err');
+  }
+
+  function clearErrors() {
+    form.querySelectorAll('.error').forEach(e => e.textContent = '');
+  }
+
+  function inlineValidate() {
+    let valid = true;
+    clearErrors();
+    const fields = ['name','phone','service'];
+    fields.forEach(name => {
+      const input = form.querySelector(`[name="${name}"]`);
+      if (!input.value.trim()) {
+        input.nextElementSibling.textContent = 'Required';
+        valid = false;
+      } else if (name === 'phone') {
+        const re = /^[0-9+\-\s()]{7,}$/;
+        if (!re.test(input.value.trim())) {
+          input.nextElementSibling.textContent = 'Enter a valid phone';
+          valid = false;
+        }
+      }
+    });
+    const email = form.querySelector('[name="email"]');
+    if (email.value && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.value)) {
+      email.nextElementSibling.textContent = 'Enter a valid email';
+      valid = false;
+    }
+    return valid;
+  }
+
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!inlineValidate()) {
+        setStatus('Please fix errors above.');
+        return;
+      }
+
+      const btn = form.querySelector('.btn.submit');
+      btn.disabled = true;
+      btn.classList.add('loading');
+      setStatus('Submitting…');
+
+      const payload = {
+        name: form.name.value.trim(),
+        phone: form.phone.value.trim(),
+        email: form.email.value.trim(),
+        service: form.service.value.trim(),
+        message: form.message.value.trim(),
+        company: form.company.value.trim() // honeypot
+      };
+
+      try {
+        const res = await fetch('/api/quote', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok && data.status === 'ok') {
+          setStatus(data.message || 'Submitted. We’ll reach out shortly.', true);
+          form.reset();
+        } else if (data.status === 'ignored') {
+          // honeypot triggered; show generic success
+          setStatus('Thanks! We’ll reach out shortly.', true);
+          form.reset();
+        } else {
+          // display field errors if any
+          if (data.errors) {
+            Object.entries(data.errors).forEach(([field, msgs]) => {
+              const input = form.querySelector(`[name="${field}"]`);
+              if (input) input.nextElementSibling.textContent = msgs.join(', ');
+            });
+          }
+          setStatus('Please review and try again.');
+        }
+      } catch (err) {
+        setStatus('Network error. Please try again.');
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+      }
+    });
+  }
+
+  // StickyCallBar: GTM + server click logging + CallRail compatible behavior
+  const bar = document.getElementById('stickyCallBar');
+  const link = document.getElementById('stickyCallLink');
+
+  function pushGTM(phone) {
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({
+      event: 'phone_click',
+      phone: phone,
+      component: 'sticky_call_bar',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  async function logClick(event_type) {
+    try {
+      await fetch('/api/click', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrftoken
+        },
+        body: JSON.stringify({ event_type })
+      });
+    } catch(e) {}
+  }
+
+  if (link) {
+    link.addEventListener('click', () => {
+      const phone = bar?.dataset.phone || '';
+      pushGTM(phone);
+      logClick('call');
+      // CallRail: if you use dynamic number insertion (DNI), ensure tel: matches displayed number or let CallRail DNI handle tracking at the number level.
+    });
+  }
+
+  // Track important website click (example: hero CTA)
+  document.querySelectorAll('a,button').forEach(el => {
+    if (el.classList.contains('primary') || el.classList.contains('nav-link')) {
+      el.addEventListener('click', () => logClick('website'));
+    }
+  });
+})();
+</script>
+
 </body>
 </html>

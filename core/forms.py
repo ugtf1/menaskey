@@ -1,4 +1,4 @@
-# core/forms.py
+
 from django import forms
 
 class QuoteForm(forms.Form):

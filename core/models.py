@@ -1,4 +1,4 @@
-# core/models.py
+
 from django.db import models
 
 class QuoteRequest(models.Model):

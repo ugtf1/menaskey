@@ -1,4 +1,4 @@
-# core/views.py
+
 import json
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.shortcuts import render, redirect
@@ -12,9 +12,9 @@ from .forms import QuoteForm
 from .models import QuoteRequest, ClickEvent, CallDetail
 
 def home(request):
-    # Render landing page; JS will post JSON to /api/quote and /api/click
+  
     return render(request, 'home.html', {
-        'phone': '+15551234567',
+        'phone': '+16124260496',
         'sticky_label': '24/7 Emergency • Call Now'
     })
 
@@ -29,7 +29,7 @@ def _traffic_from_session(request):
 
 @require_POST
 def api_quote(request):
-    # Expect JSON; inline validation + honeypot
+  
     try:
         data = json.loads(request.body.decode('utf-8'))
     except Exception:
@@ -53,8 +53,6 @@ def api_quote(request):
         **t
     )
 
-    # Optionally: forward to dashboard API or CRM here with requests.post(...)
-    # requests.post(DASHBOARD_URL, json={...}, timeout=5)
 
     return JsonResponse({'status': 'ok', 'message': 'Thanks! We’ll reach out shortly.'})
 
