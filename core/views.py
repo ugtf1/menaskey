@@ -95,8 +95,10 @@ def logout_view(request):
 def staff_required(user):
     return user.is_authenticated and user.is_staff
 
-@login_required
-@user_passes_test(staff_required)
+# Commented the two lines below to remove login request to make the analytics page
+# public for demo only, remove for production code.
+# @login_required #
+# @user_passes_test(staff_required) #
 def dashboard(request):
     # KPIs
     website_clicks = ClickEvent.objects.filter(event_type='website').count()
