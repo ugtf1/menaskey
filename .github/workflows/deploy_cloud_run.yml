@@ -9,11 +9,11 @@ on:
 # Define key variables for the pipeline
 env:
   # 🚨 REPLACE WITH YOUR PROJECT ID (e.g., ugtf-production-2025)
-  PROJECT_ID: **[YOUR_GCP_PROJECT_ID]**
+  PROJECT_ID: top-cedar-471512-k3
   # 🚨 REPLACE WITH YOUR CLOUD RUN REGION (e.g., us-central1)
-  GKE_REGION: **[YOUR_CLOUD_RUN_REGION]**
+  GKE_REGION: us-west2
   # 🚨 REPLACE WITH YOUR CLOUD RUN SERVICE NAME (e.g., menaskey-web-app)
-  SERVICE_NAME: **[YOUR_CLOUD_RUN_SERVICE_NAME]**
+  SERVICE_NAME: menaskey
 
 jobs:
   build-and-deploy:
