@@ -2,7 +2,7 @@
 name: Django CI/CD to Cloud Run
 
 on:
-  # Trigger deployment whenever code is pushed (merged) to the the main branch
+  # Trigger deployment whenever code is pushed (merged) to master
   push:
     branches:
       - master
@@ -10,67 +10,76 @@ on:
     branches:
       - master
   workflow_dispatch:
-    # No inputs needed, but this enables the button in the UI
 
-# Define key variables for the pipeline
 env:
-  # 🚨 REPLACE WITH YOUR PROJECT ID (e.g., ugtf-production-2025)
+  # 🔧 Key pipeline variables
   PROJECT_ID: top-cedar-471512-k3
-  # 🚨 REPLACE WITH YOUR CLOUD RUN REGION (e.g., us-central1)
-  GKE_REGION: us-west2
-  # 🚨 REPLACE WITH YOUR CLOUD RUN SERVICE NAME (e.g., menaskey-web-app)
-  SERVICE_NAME: github-runner-ugtf
   PROJECT_NUMBER: 30228073381
+  REGION: us-west2
+  SERVICE_NAME: github-runner-ugtf
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     
-    # REQUIRED for Workload Identity Federation: Grants GitHub Runner permission to generate the OIDC token
+    # Required for WIF (GitHub OIDC → GCP)
     permissions:
       contents: 'read'
-      id-token: 'write' 
+      id-token: 'write'
 
     steps:
+      # 1️⃣ Checkout code
       - name: Checkout Code
         uses: actions/checkout@v4
-      
-      # 1. AUTHENTICATE TO GCP (KEYLESS VIA WIF)
-      - name: Authenticate to GCP via WIF
+
+      # 2️⃣ Authenticate to GCP using Workload Identity Federation
+      - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@v2
         with:
           project_id: ${{ env.PROJECT_ID }}
-          # Path to the Identity Provider you created in the GCP Console
           workload_identity_provider: projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/ugtf-github-pool/providers/github-actions
-          # The Service Account the job will 'impersonate' (The one you granted the Service Account User role)
           service_account: github-runner-ugtf@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
+          export_default_credentials: true   # ✅ moved here (belongs to auth@v2)
 
-      # 2. Setup gcloud for Docker/Artifact Registry access
-      - name: Set up gcloud and Auth
+      # 3️⃣ Install and configure gcloud SDK
+      - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.PROJECT_ID }}
-          export_default_credentials: true
-          
-      # 3. Build and Push Container Image
+
+      # 4️⃣ Verify authentication (debugging step — optional but helpful)
+      - name: Verify GCP Authentication
+        run: |
+          echo "Active gcloud account:"
+          gcloud auth list
+          echo "Current project:"
+          gcloud config get-value project
+
+      # 5️⃣ Build and Push Docker Image to Artifact Registry
       - name: Build and Push Docker Image
         run: |
-          # Creates an image tag using Artifact Registry format
-          IMAGE_TAG="${{ env.GKE_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}"
-          
-          # Build the image using the Dockerfile
-          docker build -t $IMAGE_TAG .
-          
-          # Push the final image to Google Artifact Registry
-          docker push $IMAGE_TAG
+          IMAGE_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}"
+          echo "Building image: $IMAGE_TAG"
+
+          # Build the image
+          docker build -t "$IMAGE_TAG" .
+
+          # Authenticate Docker to GCP Artifact Registry
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+          # Push the image
+          docker push "$IMAGE_TAG"
+
+          # Expose image tag to later steps
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
-          
-      # 4. Deploy to Google Cloud Run
+
+      # 6️⃣ Deploy to Cloud Run
       - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ env.SERVICE_NAME }}
-          region: ${{ env.GKE_REGION }}
+          region: ${{ env.REGION }}
           image: ${{ env.IMAGE_TAG }}
+          allow_unauthenticated: true
           wait: true
