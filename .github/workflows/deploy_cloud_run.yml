@@ -14,7 +14,7 @@ env:
   PROJECT_ID: top-cedar-471512-k3
   PROJECT_NUMBER: 30228073381
   REGION: us-west2
-  SERVICE_NAME: github-runner-ugtf
+  SERVICE_NAME: menaskey
 
 jobs:
   build-and-deploy:
