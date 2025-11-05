@@ -2,7 +2,6 @@
 name: Django CI/CD to Cloud Run
 
 on:
-  # Trigger deployment whenever code is pushed (merged) to master
   push:
     branches:
       - master
@@ -12,7 +11,6 @@ on:
   workflow_dispatch:
 
 env:
-  # 🔧 Key pipeline variables
   PROJECT_ID: top-cedar-471512-k3
   PROJECT_NUMBER: 30228073381
   REGION: us-west2
@@ -22,17 +20,15 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     
-    # Required for WIF (GitHub OIDC → GCP)
     permissions:
       contents: 'read'
       id-token: 'write'
 
     steps:
-      # 1️⃣ Checkout code
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 2️⃣ Authenticate to GCP using Workload Identity Federation
+      # 1️⃣ Authenticate to GCP via WIF
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@v2
@@ -40,23 +36,22 @@ jobs:
           project_id: ${{ env.PROJECT_ID }}
           workload_identity_provider: projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/ugtf-github-pool/providers/github-actions
           service_account: github-runner-ugtf@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
-          export_default_credentials: true   # ✅ moved here (belongs to auth@v2)
 
-      # 3️⃣ Install and configure gcloud SDK
+      # 2️⃣ Setup gcloud SDK
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.PROJECT_ID }}
 
-      # 4️⃣ Verify authentication (debugging step — optional but helpful)
+      # 3️⃣ (Optional) Verify authentication
       - name: Verify GCP Authentication
         run: |
-          echo "Active gcloud account:"
+          echo "Current account:"
           gcloud auth list
-          echo "Current project:"
+          echo "Active project:"
           gcloud config get-value project
 
-      # 5️⃣ Build and Push Docker Image to Artifact Registry
+      # 4️⃣ Build and Push Docker Image to Artifact Registry
       - name: Build and Push Docker Image
         run: |
           IMAGE_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}"
@@ -65,16 +60,15 @@ jobs:
           # Build the image
           docker build -t "$IMAGE_TAG" .
 
-          # Authenticate Docker to GCP Artifact Registry
+          # Authenticate Docker with GCP
           gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
           # Push the image
           docker push "$IMAGE_TAG"
 
-          # Expose image tag to later steps
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
 
-      # 6️⃣ Deploy to Cloud Run
+      # 5️⃣ Deploy to Cloud Run
       - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
         with:
