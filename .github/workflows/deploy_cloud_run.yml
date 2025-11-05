@@ -5,6 +5,9 @@ on:
   push:
     # Trigger deployment whenever code is pushed (merged) to the the main branch
     branches: ["main"]
+    # 🚨 NEW MANUAL TRIGGER
+  workflow_dispatch:
+    # No inputs needed, but this enables the button in the UI
 
 # Define key variables for the pipeline
 env:
@@ -13,46 +16,54 @@ env:
   # 🚨 REPLACE WITH YOUR CLOUD RUN REGION (e.g., us-central1)
   GKE_REGION: us-west2
   # 🚨 REPLACE WITH YOUR CLOUD RUN SERVICE NAME (e.g., menaskey-web-app)
-  SERVICE_NAME: menaskey
+  SERVICE_NAME: github-runner-ugtf
+  PROJECT_NUMBER: 30228073381
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    
+    # REQUIRED for Workload Identity Federation: Grants GitHub Runner permission to generate the OIDC token
+    permissions:
+      contents: 'read'
+      id-token: 'write' 
 
     steps:
-      # 1. Checkout Code
       - name: Checkout Code
         uses: actions/checkout@v4
-
-      # 2. Authenticate to Google Cloud
-      - name: Authenticate to GCP
+      
+      # 1. AUTHENTICATE TO GCP (KEYLESS VIA WIF)
+      - name: Authenticate to GCP via WIF
         id: auth
         uses: google-github-actions/auth@v2
         with:
-          # Uses the secret created in the Prerequisites step
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          project_id: ${{ env.PROJECT_ID }}
+          # Path to the Identity Provider you created in the GCP Console
+          workload_identity_provider: projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/ugtf-github-pool/providers/github-actions
+          # The Service Account the job will 'impersonate' (The one you granted the Service Account User role)
+          service_account: github-runner-ugtf@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
 
-      # 3. Setup Docker & Artifact Registry
-      - name: Set up Docker and Auth
+      # 2. Setup gcloud for Docker/Artifact Registry access
+      - name: Set up gcloud and Auth
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.PROJECT_ID }}
           export_default_credentials: true
-
-      # 4. Build and Push Container Image
+          
+      # 3. Build and Push Container Image
       - name: Build and Push Docker Image
         run: |
-          # Define image path
+          # Creates an image tag using Artifact Registry format
           IMAGE_TAG="${{ env.GKE_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}"
-
-          # Build the image using the Dockerfile (Chuks/Ono have confirmed this exists)
+          
+          # Build the image using the Dockerfile
           docker build -t $IMAGE_TAG .
-
+          
           # Push the final image to Google Artifact Registry
           docker push $IMAGE_TAG
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
-
-      # 5. Deploy to Google Cloud Run
+          
+      # 4. Deploy to Google Cloud Run
       - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
         with:
