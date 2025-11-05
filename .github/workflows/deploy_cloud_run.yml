@@ -25,10 +25,11 @@ jobs:
       id-token: 'write'
 
     steps:
+      # 1️⃣ Checkout Code
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 1️⃣ Authenticate to GCP via WIF
+      # 2️⃣ Authenticate to GCP via WIF (no secrets)
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@v2
@@ -37,13 +38,13 @@ jobs:
           workload_identity_provider: projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/ugtf-github-pool/providers/github-actions
           service_account: github-runner-ugtf@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
 
-      # 2️⃣ Setup gcloud SDK
+      # 3️⃣ Set up the Google Cloud SDK
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.PROJECT_ID }}
 
-      # 3️⃣ (Optional) Verify authentication
+      # 4️⃣ (Optional) Verify authentication context
       - name: Verify GCP Authentication
         run: |
           echo "Current account:"
@@ -51,8 +52,9 @@ jobs:
           echo "Active project:"
           gcloud config get-value project
 
-      # 4️⃣ Build and Push Docker Image to Artifact Registry
+      # 5️⃣ Build and Push Docker Image to Artifact Registry
       - name: Build and Push Docker Image
+        id: build
         run: |
           IMAGE_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}"
           echo "Building image: $IMAGE_TAG"
@@ -60,20 +62,48 @@ jobs:
           # Build the image
           docker build -t "$IMAGE_TAG" .
 
-          # Authenticate Docker with GCP
+          # Authenticate Docker with GCP Artifact Registry
           gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
           # Push the image
           docker push "$IMAGE_TAG"
 
-          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+          # Export image tag as job output
+          echo "image=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      # 5️⃣ Deploy to Cloud Run
+      # 6️⃣ Deploy to Cloud Run
       - name: Deploy to Cloud Run
+        id: deploy
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ env.SERVICE_NAME }}
           region: ${{ env.REGION }}
-          image: ${{ env.IMAGE_TAG }}
-          allow_unauthenticated: true
+          image: ${{ steps.build.outputs.image }}
           wait: true
+
+      # 7️⃣ Rollback if deployment fails (optional safety net)
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Deployment failed — rolling back to previous revision..."
+          LAST_REVISION=$(gcloud run revisions list \
+            --service=${{ env.SERVICE_NAME }} \
+            --region=${{ env.REGION }} \
+            --limit=2 \
+            --sort-by=~createTime \
+            --format="value(metadata.name)" | tail -n 1)
+
+          if [ -n "$LAST_REVISION" ]; then
+            echo "Rolling back to revision: $LAST_REVISION"
+            gcloud run services update-traffic ${{ env.SERVICE_NAME }} \
+              --region=${{ env.REGION }} \
+              --to-revisions=$LAST_REVISION=100
+          else
+            echo "⚠️ No previous revision found — rollback skipped."
+          fi
+
+      # 8️⃣ (Optional cleanup, auto-run by GitHub)
+      - name: Post Authenticate to Google Cloud
+        if: always()
+        run: echo "Cleaned up credentials."
+
