@@ -2,10 +2,13 @@
 name: Django CI/CD to Cloud Run
 
 on:
+  # Trigger deployment whenever code is pushed (merged) to the the main branch
   push:
-    # Trigger deployment whenever code is pushed (merged) to the the main branch
-    branches: ["main"]
-    # 🚨 NEW MANUAL TRIGGER
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
   workflow_dispatch:
     # No inputs needed, but this enables the button in the UI
 
