@@ -3,11 +3,9 @@ name: Django CI/CD to Cloud Run
 
 on:
   push:
-    branches:
-      - master
+    branches: [ master ]
   pull_request:
-    branches:
-      - master
+    branches: [ master ]
   workflow_dispatch:
 
 env:
@@ -15,21 +13,21 @@ env:
   PROJECT_NUMBER: 30228073381
   REGION: us-west2
   SERVICE_NAME: menaskey
+  SERVICE_URL: https://menaskey-30228073381.us-west2.run.app
+  # link to analytics page
+  # SERVICE_URL: https://menaskey-30228073381.us-west2.run.app/dashboard/
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    
     permissions:
       contents: 'read'
       id-token: 'write'
 
     steps:
-      # 1️⃣ Checkout Code
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 2️⃣ Authenticate to GCP via WIF (no secrets)
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@v2
@@ -38,40 +36,21 @@ jobs:
           workload_identity_provider: projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/ugtf-github-pool/providers/github-actions
           service_account: github-runner-ugtf@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
 
-      # 3️⃣ Set up the Google Cloud SDK
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.PROJECT_ID }}
 
-      # 4️⃣ (Optional) Verify authentication context
-      - name: Verify GCP Authentication
-        run: |
-          echo "Current account:"
-          gcloud auth list
-          echo "Active project:"
-          gcloud config get-value project
-
-      # 5️⃣ Build and Push Docker Image to Artifact Registry
       - name: Build and Push Docker Image
         id: build
         run: |
           IMAGE_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}"
           echo "Building image: $IMAGE_TAG"
-
-          # Build the image
           docker build -t "$IMAGE_TAG" .
-
-          # Authenticate Docker with GCP Artifact Registry
           gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
-
-          # Push the image
           docker push "$IMAGE_TAG"
-
-          # Export image tag as job output
           echo "image=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      # 6️⃣ Deploy to Cloud Run
       - name: Deploy to Cloud Run
         id: deploy
         uses: google-github-actions/deploy-cloudrun@v2
@@ -81,7 +60,6 @@ jobs:
           image: ${{ steps.build.outputs.image }}
           wait: true
 
-      # 7️⃣ Rollback if deployment fails (optional safety net)
       - name: Rollback on failure
         if: failure()
         run: |
@@ -92,9 +70,7 @@ jobs:
             --limit=2 \
             --sort-by=~createTime \
             --format="value(metadata.name)" | tail -n 1)
-
           if [ -n "$LAST_REVISION" ]; then
-            echo "Rolling back to revision: $LAST_REVISION"
             gcloud run services update-traffic ${{ env.SERVICE_NAME }} \
               --region=${{ env.REGION }} \
               --to-revisions=$LAST_REVISION=100
@@ -102,8 +78,83 @@ jobs:
             echo "⚠️ No previous revision found — rollback skipped."
           fi
 
-      # 8️⃣ (Optional cleanup, auto-run by GitHub)
-      - name: Post Authenticate to Google Cloud
-        if: always()
-        run: echo "Cleaned up credentials."
+  # 2️⃣ Post-deploy health check
+  health-check:
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify Cloud Run deployment health
+        run: |
+          echo "Checking service health at ${{ env.SERVICE_URL }}..."
+          for i in {1..10}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ env.SERVICE_URL }})
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Health check passed (HTTP 200)"
+              exit 0
+            fi
+            echo "Waiting for service... (status $STATUS)"
+            sleep 5
+          done
+          echo "❌ Service did not become healthy in time."
+          exit 1
 
+  # 3️⃣ Lighthouse Performance and SEO Audit
+  lighthouse-audit:
+    needs: health-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli@0.13.x
+
+      - name: Run Lighthouse audit
+        run: |
+          lhci autorun --collect.url=${{ env.SERVICE_URL }} \
+            --upload.target=temporary-public-storage \
+            --assert.assertions.performance>=0.8 \
+            --assert.assertions.accessibility>=0.9 \
+            --assert.assertions.seo>=0.9
+        env:
+          LHCI_BUILD_CONTEXT__GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # 4️⃣ Open-source Python SEO Analyzer (with assertions)
+  seo-audit:
+    needs: lighthouse-audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Python SEO Analyzer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 python3-pip
+          pip install seo-analyzer jq
+
+      - name: Run SEO analysis
+        run: |
+          mkdir -p seo-reports
+          echo "Running SEO analysis for ${{ env.SERVICE_URL }}..."
+          python3 -m seoanalyzer ${{ env.SERVICE_URL }} --output seo-reports/seo-report.json
+          echo "✅ SEO analysis complete: seo-reports/seo-report.json"
+
+      - name: Assert SEO Quality
+        run: |
+          echo "Checking for critical SEO issues..."
+          # Example assertions: fail if critical fields are missing or broken links exist
+          BROKEN_LINKS=$(jq '.[] | select(.broken_links != []) | length' seo-reports/seo-report.json | wc -l)
+          MISSING_TITLES=$(jq '.[] | select(.title == null) | length' seo-reports/seo-report.json | wc -l)
+          MISSING_META=$(jq '.[] | select(.meta_description == null) | length' seo-reports/seo-report.json | wc -l)
+
+          echo "Broken links: $BROKEN_LINKS"
+          echo "Missing titles: $MISSING_TITLES"
+          echo "Missing meta descriptions: $MISSING_META"
+
+          if [ "$BROKEN_LINKS" -gt 0 ] || [ "$MISSING_TITLES" -gt 0 ] || [ "$MISSING_META" -gt 0 ]; then
+            echo "❌ SEO quality check failed."
+            exit 1
+          else
+            echo "✅ SEO quality check passed."
+          fi
+
+      - name: Upload SEO Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: seo-report
+          path: seo-reports/seo-report.json
