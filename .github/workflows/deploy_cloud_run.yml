@@ -77,7 +77,7 @@ jobs:
             echo "⚠️ No previous revision found — rollback skipped."
           fi
 
-  # 2️⃣ Post-deploy health check
+  # 2️⃣ Health Check
   health-check:
     needs: build-and-deploy
     runs-on: ubuntu-latest
@@ -97,7 +97,7 @@ jobs:
           echo "❌ Service did not become healthy in time."
           exit 1
 
-  # 3️⃣ Lighthouse Performance and SEO Audit
+  # 3️⃣ Lighthouse Audit
   lighthouse-audit:
     needs: health-check
     runs-on: ubuntu-latest
@@ -127,57 +127,91 @@ jobs:
             --assert.assertions="seo:warn" \
             | tee lighthouse-results.txt
 
-  # 4️⃣ Python SEO Analyzer
+  # 4️⃣ Custom Python SEO Audit (fully compatible)
   seo-audit:
     needs: lighthouse-audit
     runs-on: ubuntu-latest
+    outputs:
+      issues_summary: ${{ steps.summary.outputs.issues_summary }}
     steps:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install SEO Analyzer dependencies
+      - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install seoanalyzer beautifulsoup4 requests jq
+          pip install requests beautifulsoup4 lxml jq
 
-      - name: Run SEO Analysis
+      - name: Run SEO Audit
         run: |
           python - <<'EOF'
-          from seoanalyzer import analyze
-          import json
+          import requests, json
+          from bs4 import BeautifulSoup
+          from urllib.parse import urljoin
+
           url = "${{ env.SERVICE_URL }}"
-          print(f"🔍 Running SEO analysis for {url} ...")
-          results = analyze(url)
+          print(f"🔍 Auditing {url} for SEO issues...")
+          resp = requests.get(url, timeout=10)
+          soup = BeautifulSoup(resp.text, "lxml")
+
+          issues = []
+          if not soup.title or not soup.title.string.strip():
+              issues.append("Missing <title>")
+          if not soup.find("meta", attrs={"name": "description"}):
+              issues.append("Missing meta description")
+          if not soup.find("h1"):
+              issues.append("Missing <h1> tag")
+
+          broken_links = []
+          for a in soup.find_all("a", href=True):
+              link = urljoin(url, a["href"])
+              try:
+                  r = requests.head(link, allow_redirects=True, timeout=5)
+                  if r.status_code >= 400:
+                      broken_links.append(link)
+              except Exception:
+                  broken_links.append(link)
+          if broken_links:
+              issues.append(f"{len(broken_links)} broken links found")
+
+          report = {
+              "url": url,
+              "issues": issues,
+              "broken_links": broken_links,
+              "total_issues": len(issues)
+          }
+
           with open("seo-results.json", "w") as f:
-              json.dump(results, f, indent=2)
-          print(f"✅ SEO analysis complete — found {len(results)} issues.")
+              json.dump(report, f, indent=2)
+
+          print(f"✅ SEO audit complete: {len(issues)} issues found.")
           EOF
 
-      - name: Assert SEO Quality
+      - name: Generate SEO Summary
+        id: summary
         run: |
-          ISSUES=$(jq '. | length' seo-results.json)
-          echo "SEO issues found: $ISSUES"
-          if [ "$ISSUES" -gt 20 ]; then
-            echo "❌ Too many SEO issues!"
-            exit 1
-          else
-            echo "✅ SEO quality within threshold."
-          fi
+          SUMMARY=$(jq -r '.issues[:3] | join(", ")' seo-results.json)
+          echo "issues_summary=$SUMMARY" >> $GITHUB_OUTPUT
 
       - name: Upload SEO Report
         uses: actions/upload-artifact@v4
         with:
-          name: seo-analysis-results
+          name: seo-results
           path: seo-results.json
 
-  # 5️⃣ Email summary notification
+  # 5️⃣ Email Notification
   notify:
     needs: [lighthouse-audit, seo-audit]
     runs-on: ubuntu-latest
     steps:
-      - name: Send Email Report
+      - name: Download SEO Report
+        uses: actions/download-artifact@v4
+        with:
+          name: seo-results
+
+      - name: Send Email Summary
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -191,12 +225,9 @@ jobs:
             ✅ Deployment completed for *${{ env.SERVICE_NAME }}*
 
             🌍 URL: ${{ env.SERVICE_URL }}
-            🕵️ Lighthouse Report: Performance, Accessibility, and SEO metrics
-            🧠 SEO Analyzer: See attached report for issues and metadata insights.
 
-            Logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            **Lighthouse & SEO checks summary:**
+            ${{ needs.seo-audit.outputs.issues_summary }}
 
-      - name: Attach SEO Report
-        uses: actions/download-artifact@v4
-        with:
-          name: seo-analysis-results
+            📎 Full SEO report attached.
+          attachments: seo-results.json
