@@ -124,11 +124,14 @@ jobs:
           CLS=$(jq '.audits["cumulative-layout-shift"].numericValue' lighthouse-report.json)
           TBT=$(jq '.audits["total-blocking-time"].numericValue' lighthouse-report.json)
 
-          SUMMARY="Performance: $PERFORMANCE | Accessibility: $ACCESSIBILITY | Best Practices: $BEST_PRACTICES | SEO: $SEO
-          Core Web Vitals → LCP: ${LCP}ms | CLS: ${CLS} | TBT: ${TBT}ms"
+          echo "Performance: $PERFORMANCE | Accessibility: $ACCESSIBILITY | Best Practices: $BEST_PRACTICES | SEO: $SEO"
+          echo "Core Web Vitals: LCP=${LCP}ms | CLS=${CLS} | TBT=${TBT}ms"
 
-          echo "lighthouse_summary=$SUMMARY" >> $GITHUB_OUTPUT
-          echo "$SUMMARY"
+          SUMMARY="Performance: $PERFORMANCE | Accessibility: $ACCESSIBILITY | Best Practices: $BEST_PRACTICES | SEO: $SEO | Core Web Vitals: LCP=${LCP}ms | CLS=${CLS} | TBT=${TBT}ms"
+
+          # Escape newlines and special characters before writing to output
+          SUMMARY_ESCAPED=$(echo "$SUMMARY" | tr '\n' ' ' | tr -d '\r')
+          echo "lighthouse_summary=$SUMMARY_ESCAPED" >> $GITHUB_OUTPUT
 
       - name: Upload Lighthouse Report
         uses: actions/upload-artifact@v4
