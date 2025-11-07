@@ -124,31 +124,30 @@ jobs:
             --assert.assertions="accessibility:warn" \
             --assert.assertions="seo:warn"
 
-    # 4️⃣ Open-source Python SEO Analyzer (with assertions)
+  # 4️⃣ Python SEO Checker (replacement for seo-analyzer)
   seo-audit:
     needs: lighthouse-audit
     runs-on: ubuntu-latest
     steps:
-      - name: Install Python SEO Analyzer
+      - name: Install Python SEO Checker
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3 python3-pip
-          pip install seo-analyzer jq
+          sudo apt-get install -y python3 python3-pip jq
+          pip install seo-checker
 
-      - name: Run SEO analysis
+      - name: Run SEO Checker
         run: |
           mkdir -p seo-reports
-          echo "Running SEO analysis for ${{ env.SERVICE_URL }}..."
-          python3 -m seoanalyzer ${{ env.SERVICE_URL }} --output seo-reports/seo-report.json
-          echo "✅ SEO analysis complete: seo-reports/seo-report.json"
+          echo "Running SEO check for ${{ env.SERVICE_URL }}..."
+          seo-checker ${{ env.SERVICE_URL }} --format json > seo-reports/seo-report.json
+          echo "✅ SEO report generated: seo-reports/seo-report.json"
 
       - name: Assert SEO Quality
         run: |
-          echo "Checking for critical SEO issues..."
-          # Example assertions: fail if critical fields are missing or broken links exist
-          BROKEN_LINKS=$(jq '.[] | select(.broken_links != []) | length' seo-reports/seo-report.json | wc -l)
-          MISSING_TITLES=$(jq '.[] | select(.title == null) | length' seo-reports/seo-report.json | wc -l)
-          MISSING_META=$(jq '.[] | select(.meta_description == null) | length' seo-reports/seo-report.json | wc -l)
+          echo "🔍 Checking for critical SEO issues..."
+          BROKEN_LINKS=$(jq '.issues[] | select(.type == "broken_link") | length' seo-reports/seo-report.json | wc -l)
+          MISSING_TITLES=$(jq '.issues[] | select(.type == "missing_title") | length' seo-reports/seo-report.json | wc -l)
+          MISSING_META=$(jq '.issues[] | select(.type == "missing_meta_description") | length' seo-reports/seo-report.json | wc -l)
 
           echo "Broken links: $BROKEN_LINKS"
           echo "Missing titles: $MISSING_TITLES"
