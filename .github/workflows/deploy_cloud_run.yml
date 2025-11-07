@@ -94,12 +94,27 @@ jobs:
 
       - name: Run Lighthouse Audit
         run: |
-          lhci collect --url=${{ env.SERVICE_URL }} --output-path=./lighthouse-report.json --json
+          echo "Running Lighthouse CI against ${{ env.SERVICE_URL }}"
+          mkdir -p .lighthouseci
+          lhci collect --url=${{ env.SERVICE_URL }} --numberOfRuns=1 --outputPath=.lighthouseci --json || true
+
+          echo "Generated files:"
+          ls -R .lighthouseci || true
+
+          # move the first JSON result to a known filename
+          REPORT_FILE=$(find .lighthouseci -name "*.json" | head -n 1)
+          if [ -z "$REPORT_FILE" ]; then
+            echo "❌ No Lighthouse report JSON found!"
+            exit 1
+          fi
+          cp "$REPORT_FILE" ./lighthouse-report.json
           cat ./lighthouse-report.json | jq '.' > ./lighthouse-report-pretty.json
+          echo "✅ Lighthouse report ready: $REPORT_FILE"
 
       - name: Extract Lighthouse Scores and Core Web Vitals
         id: summary
         run: |
+          echo "Extracting metrics from Lighthouse report..."
           PERFORMANCE=$(jq '.categories.performance.score' lighthouse-report.json)
           ACCESSIBILITY=$(jq '.categories.accessibility.score' lighthouse-report.json)
           BEST_PRACTICES=$(jq '.categories["best-practices"].score' lighthouse-report.json)
@@ -120,6 +135,7 @@ jobs:
         with:
           name: lighthouse-report
           path: ./lighthouse-report-pretty.json
+
 
   # 4️⃣ Python SEO Audit
   seo-audit:
