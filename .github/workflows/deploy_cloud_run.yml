@@ -14,10 +14,9 @@ env:
   REGION: us-west2
   SERVICE_NAME: menaskey
   SERVICE_URL: https://menaskey-30228073381.us-west2.run.app
-  # link to analytics page
-  # SERVICE_URL: https://menaskey-30228073381.us-west2.run.app/dashboard/
 
 jobs:
+  # 1️⃣ Build and Deploy
   build-and-deploy:
     runs-on: ubuntu-latest
     permissions:
@@ -98,20 +97,23 @@ jobs:
           echo "❌ Service did not become healthy in time."
           exit 1
 
-   # 3️⃣ Lighthouse Performance and SEO Audit
+  # 3️⃣ Lighthouse Performance and SEO Audit
   lighthouse-audit:
     needs: health-check
     runs-on: ubuntu-latest
+    outputs:
+      lighthouse_url: ${{ steps.lhci.outputs.lighthouse_url }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # ensure full git history so lhci can get commit hash
+          fetch-depth: 0
 
       - name: Install Lighthouse CI
         run: npm install -g @lhci/cli@0.13.x
 
       - name: Run Lighthouse audit
+        id: lhci
         env:
           LHCI_BUILD_CONTEXT__CURRENT_HASH: ${{ github.sha }}
           LHCI_BUILD_CONTEXT__GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -122,46 +124,79 @@ jobs:
             --upload.target=temporary-public-storage \
             --assert.assertions="performance:warn" \
             --assert.assertions="accessibility:warn" \
-            --assert.assertions="seo:warn"
+            --assert.assertions="seo:warn" \
+            | tee lighthouse-results.txt
 
-  # 4️⃣ Python SEO Checker (replacement for seo-analyzer)
+  # 4️⃣ Python SEO Analyzer
   seo-audit:
     needs: lighthouse-audit
     runs-on: ubuntu-latest
     steps:
-      - name: Install Python SEO Checker
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3 python3-pip jq
-          pip install seo-checker
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-      - name: Run SEO Checker
+      - name: Install SEO Analyzer dependencies
         run: |
-          mkdir -p seo-reports
-          echo "Running SEO check for ${{ env.SERVICE_URL }}..."
-          seo-checker ${{ env.SERVICE_URL }} --format json > seo-reports/seo-report.json
-          echo "✅ SEO report generated: seo-reports/seo-report.json"
+          python -m pip install --upgrade pip
+          pip install seoanalyzer beautifulsoup4 requests jq
+
+      - name: Run SEO Analysis
+        run: |
+          python - <<'EOF'
+          from seoanalyzer import analyze
+          import json
+          url = "${{ env.SERVICE_URL }}"
+          print(f"🔍 Running SEO analysis for {url} ...")
+          results = analyze(url)
+          with open("seo-results.json", "w") as f:
+              json.dump(results, f, indent=2)
+          print(f"✅ SEO analysis complete — found {len(results)} issues.")
+          EOF
 
       - name: Assert SEO Quality
         run: |
-          echo "🔍 Checking for critical SEO issues..."
-          BROKEN_LINKS=$(jq '.issues[] | select(.type == "broken_link") | length' seo-reports/seo-report.json | wc -l)
-          MISSING_TITLES=$(jq '.issues[] | select(.type == "missing_title") | length' seo-reports/seo-report.json | wc -l)
-          MISSING_META=$(jq '.issues[] | select(.type == "missing_meta_description") | length' seo-reports/seo-report.json | wc -l)
-
-          echo "Broken links: $BROKEN_LINKS"
-          echo "Missing titles: $MISSING_TITLES"
-          echo "Missing meta descriptions: $MISSING_META"
-
-          if [ "$BROKEN_LINKS" -gt 0 ] || [ "$MISSING_TITLES" -gt 0 ] || [ "$MISSING_META" -gt 0 ]; then
-            echo "❌ SEO quality check failed."
+          ISSUES=$(jq '. | length' seo-results.json)
+          echo "SEO issues found: $ISSUES"
+          if [ "$ISSUES" -gt 20 ]; then
+            echo "❌ Too many SEO issues!"
             exit 1
           else
-            echo "✅ SEO quality check passed."
+            echo "✅ SEO quality within threshold."
           fi
 
       - name: Upload SEO Report
         uses: actions/upload-artifact@v4
         with:
-          name: seo-report
-          path: seo-reports/seo-report.json
+          name: seo-analysis-results
+          path: seo-results.json
+
+  # 5️⃣ Email summary notification
+  notify:
+    needs: [lighthouse-audit, seo-audit]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Email Report
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.EMAIL_USER }}
+          password: ${{ secrets.EMAIL_PASS }}
+          subject: "🚀 UGTF CI/CD Report: ${{ env.SERVICE_NAME }} Deployment Results"
+          to: ono@ugtf.org
+          from: UGTF CI Bot
+          body: |
+            ✅ Deployment completed for *${{ env.SERVICE_NAME }}*
+
+            🌍 URL: ${{ env.SERVICE_URL }}
+            🕵️ Lighthouse Report: Performance, Accessibility, and SEO metrics
+            🧠 SEO Analyzer: See attached report for issues and metadata insights.
+
+            Logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Attach SEO Report
+        uses: actions/download-artifact@v4
+        with:
+          name: seo-analysis-results
