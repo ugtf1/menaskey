@@ -79,7 +79,7 @@ jobs:
           echo "❌ Service did not become healthy in time."
           exit 1
 
-  # 3️⃣ Lighthouse Audit with Core Web Vitals
+  # 3️⃣ Lighthouse Audit (Desktop + Mobile)
   lighthouse-audit:
     needs: health-check
     runs-on: ubuntu-latest
@@ -92,53 +92,74 @@ jobs:
       - name: Install Lighthouse CI
         run: npm install -g @lhci/cli@0.13.x
 
-      - name: Run Lighthouse Audit
+      - name: Run Lighthouse Audit (Desktop + Mobile)
         run: |
-          echo "Running Lighthouse CI against ${{ env.SERVICE_URL }}"
           mkdir -p .lighthouseci
-          lhci collect --url=${{ env.SERVICE_URL }} --numberOfRuns=1 --outputPath=.lighthouseci --json || true
 
-          echo "Generated files:"
-          ls -R .lighthouseci || true
+          echo "🏁 Running Lighthouse (Desktop)..."
+          lhci collect \
+            --url=${{ env.SERVICE_URL }} \
+            --numberOfRuns=1 \
+            --outputPath=.lighthouseci/desktop \
+            --settings.formFactor=desktop \
+            --settings.screenEmulation.mobile=false \
+            --settings.throttlingMethod=provided \
+            --json || true
 
-          # move the first JSON result to a known filename
-          REPORT_FILE=$(find .lighthouseci -name "*.json" | head -n 1)
-          if [ -z "$REPORT_FILE" ]; then
-            echo "❌ No Lighthouse report JSON found!"
+          echo "📱 Running Lighthouse (Mobile)..."
+          lhci collect \
+            --url=${{ env.SERVICE_URL }} \
+            --numberOfRuns=1 \
+            --outputPath=.lighthouseci/mobile \
+            --settings.formFactor=mobile \
+            --settings.throttlingMethod=simulate \
+            --json || true
+
+          DESKTOP_REPORT=$(find .lighthouseci/desktop -name "*.json" | head -n 1)
+          MOBILE_REPORT=$(find .lighthouseci/mobile -name "*.json" | head -n 1)
+
+          if [ -z "$DESKTOP_REPORT" ] || [ -z "$MOBILE_REPORT" ]; then
+            echo "❌ One or both Lighthouse reports missing!"
             exit 1
           fi
-          cp "$REPORT_FILE" ./lighthouse-report.json
-          cat ./lighthouse-report.json | jq '.' > ./lighthouse-report-pretty.json
-          echo "✅ Lighthouse report ready: $REPORT_FILE"
 
-      - name: Extract Lighthouse Scores and Core Web Vitals
+          cp "$DESKTOP_REPORT" ./lighthouse-desktop.json
+          cp "$MOBILE_REPORT" ./lighthouse-mobile.json
+
+      - name: Extract Lighthouse Scores (Desktop + Mobile)
         id: summary
         run: |
-          echo "Extracting metrics from Lighthouse report..."
-          PERFORMANCE=$(jq '.categories.performance.score' lighthouse-report.json)
-          ACCESSIBILITY=$(jq '.categories.accessibility.score' lighthouse-report.json)
-          BEST_PRACTICES=$(jq '.categories["best-practices"].score' lighthouse-report.json)
-          SEO=$(jq '.categories.seo.score' lighthouse-report.json)
+          get_score() {
+            jq -r ".categories.$1.score" "$2"
+          }
 
-          LCP=$(jq '.audits["largest-contentful-paint"].numericValue' lighthouse-report.json)
-          CLS=$(jq '.audits["cumulative-layout-shift"].numericValue' lighthouse-report.json)
-          TBT=$(jq '.audits["total-blocking-time"].numericValue' lighthouse-report.json)
+          extract_summary() {
+            REPORT="$1"
+            DEVICE="$2"
+            PERF=$(get_score performance $REPORT)
+            ACCESS=$(get_score accessibility $REPORT)
+            BEST=$(jq -r '.categories["best-practices"].score' $REPORT)
+            SEO=$(get_score seo $REPORT)
+            LCP=$(jq -r '.audits["largest-contentful-paint"].numericValue' $REPORT)
+            CLS=$(jq -r '.audits["cumulative-layout-shift"].numericValue' $REPORT)
+            TBT=$(jq -r '.audits["total-blocking-time"].numericValue' $REPORT)
 
-          echo "Performance: $PERFORMANCE | Accessibility: $ACCESSIBILITY | Best Practices: $BEST_PRACTICES | SEO: $SEO"
-          echo "Core Web Vitals: LCP=${LCP}ms | CLS=${CLS} | TBT=${TBT}ms"
+            # Emoji thresholds
+            perf_icon=$(awk -v p=$PERF 'BEGIN{if(p>=0.9)print "✅"; else if(p>=0.75)print "⚠️"; else print "❌"}')
+            seo_icon=$(awk -v p=$SEO 'BEGIN{if(p>=0.9)print "✅"; else if(p>=0.75)print "⚠️"; else print "❌"}')
+            lcp_icon=$(awk -v v=$LCP 'BEGIN{if(v<=2500)print "✅"; else if(v<=4000)print "⚠️"; else print "❌"}')
+            cls_icon=$(awk -v v=$CLS 'BEGIN{if(v<=0.1)print "✅"; else if(v<=0.25)print "⚠️"; else print "❌"}')
+            tbt_icon=$(awk -v v=$TBT 'BEGIN{if(v<=300)print "✅"; else if(v<=600)print "⚠️"; else print "❌"}')
 
-          SUMMARY="Performance: $PERFORMANCE | Accessibility: $ACCESSIBILITY | Best Practices: $BEST_PRACTICES | SEO: $SEO | Core Web Vitals: LCP=${LCP}ms | CLS=${CLS} | TBT=${TBT}ms"
+            echo "${DEVICE} → ${perf_icon} Performance: ${PERF}, Accessibility: ${ACCESS}, Best Practices: ${BEST}, ${seo_icon} SEO: ${SEO}, Core Web Vitals: ${lcp_icon} LCP=${LCP}ms, ${cls_icon} CLS=${CLS}, ${tbt_icon} TBT=${TBT}ms"
+          }
 
-          # Escape newlines and special characters before writing to output
+          DESKTOP_SUMMARY=$(extract_summary lighthouse-desktop.json "🖥️ Desktop")
+          MOBILE_SUMMARY=$(extract_summary lighthouse-mobile.json "📱 Mobile")
+
+          SUMMARY="Lighthouse Results:\n$DESKTOP_SUMMARY\n$MOBILE_SUMMARY"
           SUMMARY_ESCAPED=$(echo "$SUMMARY" | tr '\n' ' ' | tr -d '\r')
           echo "lighthouse_summary=$SUMMARY_ESCAPED" >> $GITHUB_OUTPUT
-
-      - name: Upload Lighthouse Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: lighthouse-report
-          path: ./lighthouse-report-pretty.json
-
 
   # 4️⃣ Python SEO Audit
   seo-audit:
@@ -180,7 +201,7 @@ jobs:
           broken_links = []
           for a in soup.find_all("a", href=True):
               link = urljoin(url, a["href"])
-              if link.startswith("tel:") or link.startswith("mailto:"):
+              if link.startswith(("tel:", "mailto:")):
                   continue
               try:
                   r = requests.head(link, allow_redirects=True, timeout=5)
@@ -210,25 +231,26 @@ jobs:
           SUMMARY=$(jq -r '.issues[:3] | join(", ")' seo-results.json)
           echo "issues_summary=$SUMMARY" >> $GITHUB_OUTPUT
 
-      - name: Upload SEO Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: seo-results
-          path: seo-results.json
-
-  # 5️⃣ Email Notification
+  # 5️⃣ Notify via Email and PR Comment
   notify:
     needs: [lighthouse-audit, seo-audit]
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
-      - name: Download Reports
-        uses: actions/download-artifact@v4
+      - name: Post Comment on Pull Request
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
         with:
-          name: seo-results
-      - name: Download Lighthouse Report
-        uses: actions/download-artifact@v4
-        with:
-          name: lighthouse-report
+          message: |
+            🚀 **UGTF CI/CD Report: ${{ env.SERVICE_NAME }}**
+            🌍 [Live Site](${{ env.SERVICE_URL }})
+
+            **📊 Lighthouse Summary**
+            ${{ needs.lighthouse-audit.outputs.lighthouse_summary }}
+
+            **🧩 SEO Summary**
+            ${{ needs.seo-audit.outputs.issues_summary }}
 
       - name: Send Email Summary
         uses: dawidd6/action-send-mail@v3
@@ -250,8 +272,3 @@ jobs:
 
             **🧩 SEO Summary**
             ${{ needs.seo-audit.outputs.issues_summary }}
-
-            📎 Full reports attached.
-          attachments: |
-            seo-results.json
-            lighthouse-report-pretty.json
