@@ -108,28 +108,33 @@ jobs:
           lhci collect \
             --url=${{ env.SERVICE_URL }} \
             --numberOfRuns=1 \
-            --outputPath=.lighthouseci/desktop.json \
             --settings.formFactor=desktop \
             --settings.screenEmulation.mobile=false \
-            --settings.throttlingMethod=provided \
-            --json || true
+            --settings.throttlingMethod=provided || true
+
+          DESKTOP_REPORT=$(find .lighthouseci -name "lhr-*.json" | sort | tail -n 1)
+          if [ -z "$DESKTOP_REPORT" ]; then
+            echo "❌ Desktop Lighthouse report not found!"
+            exit 1
+          fi
+          cp "$DESKTOP_REPORT" ./lighthouse-desktop.json
+          echo "✅ Desktop report saved as lighthouse-desktop.json"
 
           echo "📱 Running Lighthouse (Mobile)..."
           lhci collect \
             --url=${{ env.SERVICE_URL }} \
             --numberOfRuns=1 \
-            --outputPath=.lighthouseci/mobile.json \
             --settings.formFactor=mobile \
-            --settings.throttlingMethod=simulate \
-            --json || true
+            --settings.throttlingMethod=simulate || true
 
-          if [ ! -f ".lighthouseci/desktop.json" ] || [ ! -f ".lighthouseci/mobile.json" ]; then
-            echo "❌ One or both Lighthouse reports missing!"
+          MOBILE_REPORT=$(find .lighthouseci -name "lhr-*.json" | sort | tail -n 1)
+          if [ -z "$MOBILE_REPORT" ]; then
+            echo "❌ Mobile Lighthouse report not found!"
             exit 1
           fi
+          cp "$MOBILE_REPORT" ./lighthouse-mobile.json
+          echo "✅ Mobile report saved as lighthouse-mobile.json"
 
-          cp .lighthouseci/desktop.json ./lighthouse-desktop.json
-          cp .lighthouseci/mobile.json ./lighthouse-mobile.json
 
       - name: Extract Lighthouse Scores and Color-Coded Deltas
         id: summary
